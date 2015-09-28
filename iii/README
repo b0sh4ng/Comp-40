@@ -1,0 +1,61 @@
+README
+Partner 1: Amoses Holton
+Login: aholto01
+
+Partner 2: Katherine Hoskins
+Login: khoski01
+
+Collaboration:
+        *comp40 TA's frequently when debugging. 
+        *Discussed stack overflow issues with Jordan Rossen
+
+Aspects that have been implemented correctly:
+
+        uarray2.c/uarray2.h
+                *Sucessfully creates an interface for a 2-Dimensional unboxed
+                 polymorphic array using Hanson's UArray interface. Contains
+                 functions that a client can use to create, free, fill, change
+                 and map a function over a 2D array. 
+        bit2.c/bit2.h
+                *Creates an interface for a 2-Dimensional unboxed array of bits.
+                 Contains functions that allow a client to create and free an
+                 array, access and change particular elements and map a function
+                 over the entire array. 
+        sudoku.c
+                *Given a pgm file containing a 9x9 solution to a sudoku puzzle,
+                 the program successfully checks if the solution is correct by
+                 checking each row, column and 3x3 subsection of the puzzle for 
+                 duplicate numbers. Calls exit(0) if the solution is correct and
+                 exit(1) if otherwise. 
+        unblackedges.c
+                *Given a pbm file containing an image made of black and white 
+                 pixels, the program removes the "black edge pixels" from the 
+                 image and prints the correct, plain pbm formatted image file
+                 to stdout. 
+
+Critical Design ELements:
+        uarray2.c/uarray2.h
+                To model a 2-Dimensional array, we used a single Uarray object
+                with enough indicies to store all the elements of the 2D array.
+                To calculate where the elements shoud be stored in the 1D array
+                we used the equation
+                                    i = (x * width) + y
+                where i is the appropriate index of the 1D array, x is the row
+                of the 2D array, y is the column of the 2D array and width is 
+                the width of the 2D array.
+
+                We also changed our uarray2.h file since the design document 
+                submission so that it no longer includes the struct defintion,
+                meaning that the definition is inaccessbile to the client. 
+        bit2.c/bit2.h
+                The implementation of the bit2 2-Dimensional array is smilar
+                to the Uarray2 in that it is also based on a single Hanson's
+                bit vector. The equation for calculating where elements should
+                be stored in the 1D array is the same as that of Uarray2. 
+
+                In our design we used a UArray to store the elements, but upon
+                writing the actual implementation, we changed it to be a Bit
+                vector. The struct defintion was also moved from the .h file to 
+                the .c file to hide its specifics from the client. 
+
+Hours spent on assignment: 25 Hours

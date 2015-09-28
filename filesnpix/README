@@ -1,0 +1,40 @@
+Partner 1: Amoses Holton
+Login: aholto01
+
+Partner 2: Katherine Hoskins
+Login: khoski01
+
+Aspects that have been implemented correctly:
+
+        brightness.c
+                *Given a pgm image file, brightness correctly calculates the 
+                  average brightness and reports that value rounded to 3 
+                  decimal places.
+        
+        readaline.c
+                *Given a pointer to an open text file and a pointer to a pointer
+                  to a block of memory, the program reads the next unread line
+                  and stores the characters in a byte array.
+                *The program then sets the given pointer to a pointer to the
+                  array and returns the size of that array.
+                *Sucessfully implements Hanson's Sequences in order to handle
+                 lines of any length.
+
+        simlines.c
+                *Given one or more text files, the program finds lines that are
+                  constructed of the same words and prints out where matches
+                  occur and in which file.
+                *Sucessfully implements Hanson's Sequences, Atoms and Tables to
+                  detect and build match groups.
+
+Collaboration:
+        *Comp 40 TA's
+        *Owen Martin
+        *James McDowell
+        *Cameron Flowers
+
+Pair Programming:
+        *All parts of all programs were built using pair programming.
+
+Hours Spent:
+        *Approximately 44 hours was spent on this assignment
