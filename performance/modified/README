@@ -1,0 +1,31 @@
+Amoses Holton & Forrest Butler
+12/4/15
+Assignment 7 Profiling
+
+We have recieved help from the Comp40 TA's, Noah Mendelson, and have
+discussed optimized times/results with other students.
+
+UM Analysis
+The most costly procedure in the final, optimized version of the um is the 
+routine of getting the next instruction in the array, routing that instruction
+based on opcode, and passing the register values of that to the appropriate
+instruction function. This process takes up approximately 60% of runtime.
+
+
+Assembly code analysis
+No information was gleaned from a brief analysis of the aseembly code of our 
+final compilation. There were over 22 thousand instructions, preventing any
+level of scrutiny. However, one interesting pattern found was that instructions
+of the same opcode were often grouped in blocks of 10-20 when revealed by 
+umdump. Our prediction is that because certain hardware circuits are used to 
+deal with certain instructions, it is most efficient to access that hardware
+repeatedly, e.g. in blocks of instructions, when possible.
+
+Time Spent Analyzing Problems: 5 hours
+Time Spent Solving Problems: 14 hours
+
+The following files were used as benchmarks:
+sandmark.umz (Big) 
+advent.umz (Medium, run with partial solution)
+midmark.um (Small)
+

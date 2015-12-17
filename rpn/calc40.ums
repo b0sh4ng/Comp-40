@@ -1,0 +1,368 @@
+# r0 is always used as the zero register
+# r2 is the stack pointer
+# r3 holds the length of the stack
+# r6 and r7 are consistently used for the temp registers
+.section init
+.zero r0
+.temps r1, r6, r7
+# Space to keep the length of the stack and the value of the stack pointer, 
+# kept at index 0 and 1 respectively.
+stack_data:
+ .space 2
+# Made space for a jump table to hold all possible ascii characters and
+# set each location with the associated function if there was one.
+jumptable:
+ .space 256
+ r5 := 0
+fill_table:
+ r6 := jumptable + r5
+ m[r0][r6] := input_error
+ r5 := r5 + 1
+ if(r5 <s 256) goto fill_table
+ r5 := '0'
+fill_digits:
+ r6 := jumptable + r5
+ m[r0][r6] := digit
+ r5 := r5 + 1
+ if(r5 <s 58) goto fill_digits
+fill_funcs:
+ m[r0][jumptable + ' '] := waiting
+ m[r0][jumptable + '\n'] := print_stack 
+ m[r0][jumptable + '+'] := add
+ m[r0][jumptable + '-'] := subtract
+ m[r0][jumptable + '*'] := multiply
+ m[r0][jumptable + '/'] := divide
+ m[r0][jumptable + '|'] := bit_or
+ m[r0][jumptable + '&'] := bit_and
+ m[r0][jumptable + 'c'] := negate
+ m[r0][jumptable + '~'] := complement
+ m[r0][jumptable + 's'] := swap
+ m[r0][jumptable + 'd'] := duplicate
+ m[r0][jumptable + 'p'] := delete
+ m[r0][jumptable + 'z'] := clear
+.temps off
+.temps r6, r7
+goto main
+
+.section text
+# Uses r5 and r4 to hold last two digits loaded. r5 is the most 
+# significant decimal place and r4 contains the rest of the number
+# Places the concatenated number onto the stack and decrements
+# stack length by 1.
+digit_double:
+ pop r1 off stack r2
+ pop r5 off stack r2
+ r5 := r5 * 10
+ r4 := r4 - '0'
+ r4 := r5 + r4
+ push r4 on stack r2
+ goto entering
+
+# Uses r4 to hold the value of the number entered (not the ascii
+# value) then loads that number to the stack, incrementing stack
+# length.
+digit:
+ r4 := r4 - '0'
+ push r4 on stack r2
+ r3 := r3 + 1
+ goto entering
+
+# Checks that stack has at least one number.
+check1:
+ .temps r4, r6, r7
+ if(r3 >=s 1) goto r1  
+ goto operand_error
+
+# Checks that stack has at least 2 numbers.
+check2:
+ .temps r4, r6, r7
+ if(r3 >=s 2) goto r1
+ goto operand_error
+
+# Error when not enough values on stack for operator.
+operand_error:
+ output "Not enough operands\n"
+ goto waiting
+ 
+# Error that prints when an unknown command/value is entered.
+input_error:
+ output "Invalid Character\n"
+ goto waiting
+
+# Returns if nothing on stack, otherwise stack length and original 
+# stack pointer is saved in stack_data space (space 0 and 1 respectively), 
+# then print module is called.
+print_stack:
+ if (r3 == r0) goto waiting
+ r4 := stack_data + r0
+ m[r0][r4] := r3
+ r4 := r4 + 1
+ m[r0][r4] := r2
+ goto store_stack linking r1
+ .temps off
+ .temps r6, r7
+ goto waiting
+
+# r4 holds the most recent number stored, and r5 the number before
+# that. Both are added and the result is pushed onto the stack,
+# and stack length is decremented.
+add:
+ goto check2 linking r1
+ .temps off
+ .temps r6, r7
+ pop r4 off stack r2
+ pop r5 off stack r2
+ r5 := r5 + r4
+ push r5 on stack r2
+ r3 := r3 - 1
+ goto waiting
+
+# r4 holds the most recent number stored, and r5 the number before
+# that. r4 is subtracted from r4, the result is pushed onto the stack,
+# and stack length is decremented.
+subtract:
+ goto check2 linking r1
+ .temps off
+ .temps r6, r7
+ pop r4 off stack r2
+ pop r5 off stack r2
+ r5 := r5 - r4
+ push r5 on stack r2
+ r3 := r3 - 1
+ goto waiting
+ 
+# r4 holds the most recent number stored, and r5 the number before
+# that. Those registers are multiplied, the result is pushed onto the stack,
+# and stack length is decremented.
+multiply:
+ goto check2 linking r1
+ .temps off
+ .temps r6, r7
+ pop r4 off stack r2
+ pop r5 off stack r2
+ r5 := r5 * r4
+ push r5 on stack r2
+ r3 := r3 - 1
+ goto waiting
+
+# r4 holds the most recent number stored, and r5 the number before
+# that. r5 is divided by r4, the result is pushed onto the stack,
+# and stack length is decremented. This function does extra checks for
+# division by 0 or negative numbers (if either or is negative).
+divide:
+ goto check2 linking r1
+ .temps off
+ .temps r6, r7
+ pop r4 off stack r2
+ pop r5 off stack r2
+ push r1 on stack r2
+ push r3 on stack r2
+ .temps r1, r3, r6, r7
+ if (r4 == 0) goto div_error
+ if (r5 <s 0) goto neg_x
+ if (r4 <s 0) goto neg_y
+ .temps off
+ .temps r6, r7
+ pop r3 off stack r2
+ pop r1 off stack r2
+ r5 := r5 / r4
+ push r5 on stack r2
+ r3 := r3 - 1
+ goto waiting
+ 
+# Error for division by 0 
+div_error:
+ output "Division by 0\n"
+ .temps off
+ .temps r6, r7
+ pop r3 off stack r2
+ pop r1 off stack r2
+ push r5 on stack r2
+ push r4 on stack r2
+ goto waiting
+
+# Divide helper when the denominator (r4) is negative. Makes the value negative
+# and then divides r5 by r4. Pushes that result onto the stack and decrements
+# stack length by 1.
+neg_y: 
+ r4 := -r4
+ r5 := r5 / r4
+ .temps off
+ .temps r6, r7
+ pop r3 off stack r2
+ pop r1 off stack r2
+ r5 := -r5
+ push r5 on stack r2
+ r3 := r3 - 1
+ goto waiting
+
+# Divide helper when the numerator (r5) is negative. Makes the value negative
+# and then divides r5 by r4. Pushes that result onto the stack and decrements
+# stack length by 1.
+neg_x:
+ .temps r1, r3, r6, r7
+ if (r4 <s 0) goto divide_negs
+ r5 := -r5
+ r5 := r5 / r4
+ .temps off
+ .temps r6, r7
+ pop r3 off stack r2
+ pop r1 off stack r2
+ r5 := -r5
+ push r5 on stack r2
+ r3 := r3 - 1
+ goto waiting
+
+# Divide helper when both values are negative. Divides r5 by r4 and then pushes 
+# that result onto the stack and decrements stack length by 1.
+divide_negs:
+ .temps off
+ .temps r6, r7
+ pop r3 off stack r2
+ pop r1 off stack r2
+ r5 := r5 / r4
+ push r5 on stack r2
+ r3 := r3 - 1
+ goto waiting
+
+# Takes the last two values off the stack, stores them into r5 and r4 then
+# calculates the bitwise or. The result is then pushed on the stack and stack
+# length is decremented by 1.
+bit_or: 
+ goto check2 linking r1
+ .temps off
+ .temps r6, r7
+ pop r4 off stack r2
+ pop r5 off stack r2
+ r5 := r4 | r5
+ push r5 on stack r2
+ r3 := r3 - 1
+ goto waiting
+
+# Takes the last two values off the stack, stores them into r5 and r4 then
+# calculates the bitwise and. The result is then pushed on the stack and stack
+# length is decremented by 1.
+bit_and:
+ goto check2 linking r1
+ .temps off
+ .temps r6, r7
+ pop r4 off stack r2
+ pop r5 off stack r2
+ r5 := r4 & r5
+ push r5 on stack r2
+ r3 := r3 - 1
+ goto waiting
+
+# Pops the last value pushed into r4 and makes it negative. Places the new
+# value onto the stack.
+negate:
+ goto check1 linking r1
+ .temps off
+ .temps r6, r7
+ pop r4 off stack r2
+ r4 := -r4
+ push r4 on stack r2
+ goto waiting
+
+# Pops the last value pushed into r5, takes the complement and places the new
+# value onto the stack.
+complement:
+ goto check1 linking r1
+ .temps off
+ .temps r6, r7
+ pop r5 off stack r2
+ r5 := ~r5
+ push r5 on stack r2
+ goto waiting
+
+# Pushes most recent value into r4 and the next value into r5. Then pushes the
+# value of r4 on the stack then pushes r5 onto the stack.
+swap:
+ goto check2 linking r1
+ .temps off
+ .temps r6, r7
+ pop r4 off stack r2
+ pop r5 off stack r2
+ push r4 on stack r2
+ push r5 on stack r2
+ goto waiting
+
+# Pops the last value pushed into r4 then pushes that value back on twice, the 
+# stack length is then incremented by 1.
+duplicate:
+ goto check1 linking r1
+ .temps off
+ .temps r6, r7
+ pop r4 off stack r2
+ push r4 on stack r2
+ push r4 on stack r2
+ r3 := r3 + 1
+ goto waiting
+
+# Pops the last value pushed into r4 (removing it from stack) and decrements 
+# stack length by 1. 
+delete:
+ goto check1 linking r1
+ .temps off
+ .temps r6, r7
+ pop r4 off stack r2
+ r3 := r3 - 1
+ goto waiting
+
+# Goes through stack and pops every value, decreasing stack length by 1 each
+# time and keeps going until stack length is 0.
+clear:
+ .temps r4, r6, r7
+ if(r3 == 0) goto init_waiting
+ pop r5 off stack r2
+ r3 := r3 - 1
+ goto clear
+
+# Reinitializes temps before going back to waiting
+init_waiting:
+ .temps off
+ .temps r6, r7
+ goto waiting
+
+# Puts input into r4, continues to waiting_with_char
+waiting: 
+ r4 := input()
+
+# Checks input (r4) to see if it's EOF, if not then it goes the that character's
+# position in the jumptable
+waiting_with_char:
+ push r3 on stack r2
+ push r1 on stack r2
+ .temps r6, r7, r3
+ r1 := ~r4
+ if (r1 == 0) goto end_program
+ .temps off
+ .temps r6, r7
+ pop r1 off stack r2
+ pop r3 off stack r2
+ r5 := jumptable + r4
+ r5 := m[r0][r5]
+ goto r5
+ 
+# If the last input was a digit then we go to entering. Continues to check for 
+# a digit but if input (r4) isn't a digit, then it goes to waiting_with_char.
+entering:
+ r4 := input()
+ r5 := r4 - '0'
+ push r1 on stack r2
+ .temps r6, r7, r1
+ if(r5 >s 9) goto init_waiting_with_char
+ if(r5 <s 0) goto init_waiting_with_char
+ goto digit_double
+
+# Restores temps and r1 value that was pushed before going to waiting_with_char.
+init_waiting_with_char:
+ .temps off
+ .temps r6, r7 
+ pop r1 off stack r2
+ goto waiting_with_char
+
+#40isover
+end_program:
+ halt
+ 

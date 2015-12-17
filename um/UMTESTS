@@ -1,0 +1,15 @@
+test1_halt.um
+test2_load.um
+test3_output.um
+test4_nand_condMove.um
+test5_input.um
+test6_multiply.um
+test7_divide.um
+test8_store40000.um
+test10_change_condMove.um
+test11_division.um
+test12_multiply.um
+test13_overflow.um
+test14_jump.um
+test15_reuse.um
+test16_inout.um

@@ -1,0 +1,158 @@
+#r0 always stores 0
+#r1 is used as the return address for a function call
+#r2 is used as the stack pointer
+#r3 holds the number of elements in the stack
+#r6 and r7 are used as temps
+.section init
+.zero r0
+.temps r6, r7
+
+#stack store will be used to hold the numbers that are on the stack
+stack_store:
+ .space 10001
+
+#holds each digit of a multi-digit number.  The maximum size is 10 digits 
+number_store:
+ .space 10
+
+.section text
+
+#transfers the stack into the stack_store data structure
+store_stack:
+ .temps r4, r6, r7 
+ r3 := r3 + stack_store
+ r3 := r3 + 1
+#r1 is stored at the position that is one larger than the size of stack.
+#It is used as the return address for this function
+ m[r0][r3] := r1
+ r3 := r3 - 1
+ r3 := r3 - stack_store
+#loops through each element of the stack to store it into stack_store
+store_loop:
+ pop r5 off stack r2
+ r3 := r3 + stack_store
+ m[r0][r3] := r5
+ r3 := r3 - stack_store
+#pushes the value back onto the stack immediately and then iterates r2, which
+#is the stack pointer
+ push r5 on stack r2
+ pop stack r2
+ r3 := r3 - 1
+#if all numbers have been copied, goes to a routine to restore the stack
+#pointer and stack counter
+ if (r3 == 0) goto init_print_numbers
+ goto store_loop
+
+#restores the stack pointer and stack counter to have an accurate stack
+#counter
+init_print_numbers: 
+ r3 := stack_data + 1
+ r2 := m[r0][r3]
+#r3 holds the stack counter
+ r3 := endstack - r2
+ goto print_numbers
+
+#prints each member of stack_store based off its digit count after three
+#greater than values are printed
+print_numbers:
+ .temps r4, r6, r7
+#if the end of the list is reached, goes to a routine to exit the print
+ if (r3 == 0) goto exit_print 
+ output ">>> "
+ r5 := r3 + stack_store
+ r5 := m[r0][r5]
+#if the number is negative, goes to a routine that prints a - character
+ if (r5 <s 0) goto print_neg
+#if a single digit, prints that digit in subroutine
+ if (r5 <s 10) goto print_single
+#otherwise, goes to the routine to print a number with more digits than one
+ goto print_long
+
+#called if a number is negative. Prints a - sign and then makes the number
+#positive for use in the rest of the printing
+print_neg:
+ .temps r4, r6, r7
+ output "-"
+ r5 := -r5
+#if the number is greater than nine, meaning it has more than one digit, 
+#goes to the print_long routine
+ if (r5 >s 9) goto after_neg_check
+#otherwise, goes to the print_single routine
+ goto print_single
+
+#prints a single digit and then returns to the main print routine
+print_single:
+ r5 := r5 + '0'
+ output r5
+ output "\n"
+ r3 := r3 - 1
+ goto print_numbers
+
+#prints a number with multiple digits
+print_long:
+ .temps r4, r6, r7
+#stores the original number at the zero spot of number_store
+ r1 := number_store + r0
+ m[r0][r1] := r5
+#this label starts the routine at this point if the number is negative
+after_neg_check:
+ r1 := 1
+#stores each digit into number_store
+push_loop:
+#if the number is less than 9, meaning it now has only one digit left, 
+#printing is started
+ if (r5 <s 9) goto start_print
+ r2 := r5 mod 10
+#if no remainder from the mod, goes to routine to push 0 into 
+#number_store
+ if (r2 == 0) goto push_zero
+#stores digit
+ r1 := r1 + number_store
+ m[r0][r1] := r2
+ r1 := r1 - number_store
+ r1 := r1 + 1
+#moves the original number down to the next digit
+ r5 := r5 - r2
+ r5 := r5 / 10
+#this label starts the routine again here if 0 was stored in number_store
+after_zero_push:
+ if (r5 >s 9) goto push_loop
+#starts printing the digit
+start_print:
+ r5 := r5 + '0'
+ output r5
+#the loop to print the rest of the number
+print_loop:
+ r1 := r1 - 1
+ r1 := r1 + number_store
+ r5 := m[r0][r1]
+ r1 := r1 - number_store
+ r5 := r5 + '0'
+ output r5
+#r1 is iterated to print each digit
+ if (r1 >s 1) goto print_loop
+ output "\n"
+ r1 := number_store + r0
+ r5 := m[r0][r1]
+ r3 := r3 - 1
+ goto print_numbers
+ 
+#stores zero into number_store and takes the last digit off of the original
+#number
+push_zero:
+ r1 := r1 + number_store
+ m[r0][r1] := r0
+ r1 := r1 - number_store
+ r1 := r1 + 1
+ r5 := r5 / 10
+ goto after_zero_push
+ 
+#restores the stack pointer and counter, and restores r1 and then returns
+exit_print:
+ r3 := stack_data + 1
+ r2 := m[r0][r3]
+ r3 := endstack - r2
+ r1 := r3 + 1
+ r1 := r1 + stack_store
+ r1 := m[r0][r1]
+ goto r1

@@ -1,0 +1,5 @@
+#!/bin/sh
+. /usr/sup/use/use.sh
+use comp40
+
+umasm stack.ums calc40.ums printd.ums callmain.ums > calc40.um

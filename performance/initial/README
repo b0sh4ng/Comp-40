@@ -1,0 +1,145 @@
+README
+Amose Holton & Forrest Butler
+Comp40 assignment 6 - UM
+
+We acknowledge help from Noah Mendelson and various comp40 TA’s 
+during the design and implementation of the program.
+
+*Implemented correctly:
+The segmented memory, 14 instructions and um that uses 8 registers
+are implemented all correctly. Midmark takes about 4 seconds and
+sandmark takes well over 3 minutes so our um isn't as optimized
+as it could be.
+
+
+*Departures from Design:
+The main departures from our design documentation are related to 
+the creation of a seperate um module, and the data structures chosen 
+for our segmented memory. We at fist planned to have a um.c and um.h, 
+resulting in a um module that could be called externally. We instead 
+chose to implement that main within um, seeing that it fit better 
+philosophically as a program rather than a module.
+
+Additionally, seeing that Hanson tables had more overhead than needed, 
+we decided on a sequence to hold our memory segment arrays, as they also 
+had random access. For our unmapped segment id’s, we chose to hold them 
+in a sequence as well, rather than a stack.
+
+
+*Architecture
+The um.c program relies on the instructions.h and segmented.h interfaces. 
+The instructions.h interface is used to handle the function of individual 
+instructions, and segmented.h interface handles the use of emulated 
+segmented memory. The um stores values in 8 uint32_t registers, and can 
+also access the segmented memory, in which the 0th segment holds the 
+current program. The instructions.h interface interacts with pointers to 
+these registers so that it can freely modify the (maximum) 3 input 
+registers per instruction. The segmented.h interface relies on a Hanson 
+sequence to hold the memory segments, which are arrays of type uint32_t. 
+These arrays are identified by their index in the sequence. The id’s of 
+the unmapped segments are held in a Hanson sequence, and are loaded in 
+groups of 1000 as needed.
+
+
+*Performing 50 Million Instuctions
+It takes around 20 seconds for our machine to perform 50 million
+instructions and we know this because we perform a test that maps
+new segments 50 million times. This test took slightly longer than one 
+that performed 25 million loads and stores because a malloc took place
+during each segment map. We performed another test that had 25 million
+addition instructions and that took 5 seconds, therefore it would take
+10 seconds to perform 50 million. Based on those two tests, our um 
+on average performs 50 million instructions in 15 seconds.
+
+
+*Tests
+test1_halt.um
+Tests that halt works by using halt as the only instruction. It does
+nothing.
+
+test2_load.um
+Tests that load works, by calling load value and then halt.
+
+test3_output.um
+Test that output works correctly by loading a value into a register
+and outputting that value.
+
+test4_nand_condMove.um
+Tests that Nand and conditional move works. It does this by loading
+two 65 and 63 into r1 and r2 respectively. 0 is loaded into r0 and
+Nand is performed on r0 and r0, and the outcome is stored into r3.
+r3 should be ~0, then nand is performed with r3 and r3 and the outcome
+is stored in r4. r4 should should hold 0 and then a r2 is conditionally
+moved into r1 if r4 isn't 0. Then r1 is  outputted. If both nands occur
+correctly then the conditional move shouldn't happen and r1 shall remain
+64 and this '@' should be outputted.
+
+test5_input.um
+Tests that input works by taking calling input 7 times, storing each of 
+the values inputted into it's own register and outputting each of those
+registers.
+
+test6_multiply.um
+Tests that multiply works by loading 6 different values into registers,
+two at a time and multiplying those values to achieve a desired ascii
+character and outputting it. First 6 and 12 are loaded, then multiplied
+to achieve 72 which is ascii for 'H', then 1 and 73 are loaded, then 
+multiplied to achieve 73 which is ascii for 'I' and finally 11 and 3 
+are loaded and multiplied to achieve 33 which ascii for '!'.
+
+test7_divide.um
+This tests that divide works by performing similar tasks as test6 above.
+Instead of multiplying, it divides the two values loaded. It loads
+31200 and 400 then divides to output 78 which is ascii for 'N'. Then
+it loads 102786 and 926 then divides to output 111 which is 'o'. 
+After performing those instructions it halts.
+
+test8_store40000.um
+This tests that the store value instruction works properly. It does
+this by mapping a segment of size 40000, then it loads 0-39999 into
+a register and stores it in that respective offset.
+
+test9_map50million.um
+This tests the unmap segment instruction by mapping a segment of
+size 1 50 millon times, then unmaps that all of the segments.
+This test isn't included because of the size.
+
+test10_change_condMove.um
+Tests that a conditional move doesn't work when the conditional
+register is 0 and then changes the conditional register to 1 in order
+to change that register being outputted.
+
+test11_division.um
+Tests accuracy of division by performing regular divides, divides that 
+round, and dividing 0 by a denominator. Checks accuracy by adding 
+expected offset and printing value.
+
+test12_multiply.um
+Tests accuracy of multiplication through multiplying by various numbers, 
+including o and non-zero values. Checks accuracy by adding expected 
+offset and printing value.
+
+test13_overflow.um
+Tests the overflow mechanic of addition and multiplication. Multiplies 
+a number to overflow and checks accuracy by adding expected offset and 
+printing value. Then does the same with addition.
+
+test14_jump.um
+Tests the functionality of load_program. Loads the current program in 
+different locations to perform certain load values. Checks accuracy by 
+outputting the registers with loaded values and printing value.
+
+test15_reuse.um
+Tests the functionality of reusing memory segments by mapping, saving 
+that ID, unmapping, then remapping. Makes sure that both of those ID’s 
+are equal.
+
+test16_inout.um
+Tests the functionality of input and output instructions by inputting a 
+character, saving it, and outputting that same value.
+
+
+*Time Spent
+Analyzing: 4 hours
+Designing: 4 hours
+Solving: 30 hours

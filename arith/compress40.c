@@ -1,0 +1,415 @@
+
+/* 
+ * compress40.c
+ * by Amoses Holton and Forrest Butler, 10.20.15
+ * Assignment 4
+ * 
+ * This program takes a ppm image from a file or standard input along
+ * with the argument -c. The program compresses the image and prints
+ * the image in compressed format to stdout. The program will accept
+ * an image in compressed format through a file or stdin with the
+ * argument -d, which will decompress the image and print out the
+ * image in binary ppm format.
+ */
+
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include "assert.h"
+#include "pnm.h"
+#include "math.h"
+#include "compress40.h"
+#include "a2methods.h"
+#include "a2blocked.h"
+#include "arith40.h"
+#include "a2plain.h"
+#include "bitpack.h"
+#include "stdint.h"
+#include <inttypes.h>
+
+/* Indices for field values in words */
+int PR_LSB = 0;
+int PB_LSB = 4;
+int D_LSB = 8;
+int C_LSB = 13;
+int B_LSB = 18;
+int A_LSB = 23;
+
+/* Standard denominator used for ppm images */
+int DENOMINATOR = 255;
+
+/* Struct to represent a YPbPr pixel */
+struct Ypp {
+        float y;
+        float pb;
+        float pr;
+};
+typedef struct Ypp Ypp;
+
+/* Struct to hold the fields that a word is composed of */
+struct pixel_block {
+        int pb, pr, a, b, c, d;
+
+};
+typedef struct pixel_block pixel_block;
+
+
+/* Apply function which collects the pixels and compresses them with assistance 
+ * from helper functions */
+void map_compress(int i, int j, A2Methods_UArray2 arr, void *elem, void *cl);
+
+/* This function takes a Pnm_rgb struct and a float that represents the
+ * denominator. Calculates the Y, Pb, Pr pixel using the given R, G, B pixels
+ * and returns the newly calcluated pixel in a Ypp struct.
+ */
+Ypp RGB_to_YPP(Pnm_rgb pixel, float denominator);
+
+/* This function takes a float that represents a DCT coefficient and it returns
+ * the quantitized index value.
+ */
+int index_of_dct(float input);
+
+/* Takes four Ypp structs and calculates the DCT coefficients as well as Pb and
+ * Pr averages. Stores these values into a pixel_block struct which will be 
+ * used to create the words.
+ */
+pixel_block pack(Ypp one, Ypp two, Ypp three, Ypp four);
+
+/* Takes a pixel block in order to store the values into a word using bitpack. 
+ * Prints out the completed word to stdout in binary.
+ */
+void print_word(pixel_block block);
+
+/* Apply function with a file as the closure. This function moves through each
+ * word, unpacks and stores the RGB pixels into the array as they are converted
+ * with the help of helper functions.
+ */
+void map_decompress(int i, int j, A2Methods_UArray2 arr, void *elem, void *cl);
+
+/* Takes a file pointer to read the next word, unpacks that word and returns a
+ * pixel_block struct that holds all DCT coefficients, Pb and Pr.
+ */
+pixel_block unpack(FILE *fp);
+
+/* Takes the index of quantization and returns the value of the quantitized 
+ * index.
+ */
+float dct_of_index(int index);
+
+/* Takes a Ypp struct and caculates the RGB pixel values from the given YPbPr
+ * pixels. Returns a Pnm_rgb struct that contains the calculated RGB values.
+ */
+struct Pnm_rgb YPP_to_RGB(Ypp pixel);
+
+Ypp read_Ypp(FILE *fp);
+
+/*                            compress40
+ *
+ * This function takes a FILE pointer and uses helper functions to compress 
+ * the image and print out the image to stdout in compressed Comp40 format.
+ */
+void compress40 (FILE *input)
+{
+        assert(input != NULL);
+        int width, height;
+        A2Methods_T methods = uarray2_methods_plain;
+
+        Pnm_ppm image = Pnm_ppmread(input, methods);
+        width = image->width;
+        height = image->height;
+        image->width = width - (width % 2);
+        image->height = height - (height % 2);
+        
+        printf("COMP40 Compressed image format 2\n%u %u\n", 
+                                        image->width, image->height);
+
+        methods->map_row_major(image->pixels, map_compress, &image);
+
+        Pnm_ppmfree(&image);
+}
+
+/*                             decompress40
+ *
+ * Function takes a FILE pointer to the decompressed image and uses helper 
+ * functions to decompress the image and print out the ppm image to stdout in 
+ * binary format.
+ */
+void decompress40(FILE *input)
+{
+        assert(input != NULL);
+        int size, read, c;
+        A2Methods_T methods = uarray2_methods_plain;
+
+        /*read in header*/
+        unsigned width, height;
+        read = fscanf(input, "COMP40 Compressed image format 2\n%u %u",
+                                                         &width, &height);
+        assert(read == 2);
+        c = getc(input);
+        assert(c == '\n');
+
+        size = sizeof(struct Pnm_rgb);
+        A2Methods_UArray2 arr = methods->new(width, height, size);
+        struct Pnm_ppm pixmap = {
+                .width = width,
+                .height = height,
+                .denominator = DENOMINATOR,
+                .pixels = arr,
+                .methods = methods
+        };
+
+        methods->map_row_major(pixmap.pixels, map_decompress, input);
+        Pnm_ppmwrite(stdout, &pixmap);
+
+        methods->free(&arr);
+}
+
+/*                            map_compress
+ *
+ * Apply function that goes through the image by row major order and converts
+ * RGB pixels to YPP pixels everytime it reaches a top left corner of a 2x2 
+ * block. Creates the word from the four YPP pixels and prints the word to 
+ * stdout in binary.
+ */
+void map_compress(int i, int j, A2Methods_UArray2 arr, void *elem, void *cl) 
+{
+        Pnm_ppm ppm = *(Pnm_ppm *) cl;
+        const struct A2Methods_T *methods = ppm->methods;
+        float denom = ppm->denominator;
+        pixel_block word;
+        (void) elem;
+
+        
+        if (i % 2 == 1 && j % 2 == 1) {       
+                Ypp four = RGB_to_YPP((Pnm_rgb) methods->at(arr, i, j),
+                                                                         denom);
+                Ypp three = RGB_to_YPP((Pnm_rgb) methods->at(arr, i - 1, j),
+                                                                         denom);
+                Ypp two = RGB_to_YPP((Pnm_rgb) methods->at(arr, i, j - 1),
+                                                                         denom);
+                Ypp one = RGB_to_YPP((Pnm_rgb) methods->at(arr, i - 1, j - 1),
+                                                                         denom);
+
+                word = pack(one, two, three, four);
+                print_word(word);
+        }
+}
+
+/*                            RGB_to_YPP
+ *
+ * Takes a Pnm_rgb struct and a float that represents the denominator. Function
+ * performs the calculations to convert a RGB pixel to a component YPbPr pixel.
+ * Returns a Ypp struct which holds the Y, Pb and Pr.
+ */
+Ypp RGB_to_YPP(Pnm_rgb pixel, float denominator) 
+{
+        Ypp temp;
+        float r = pixel->red / denominator;
+        float g =  pixel->green / denominator;
+        float b = pixel->blue / denominator;
+
+        temp.y = (0.299 * r) + (0.587 * g) + (0.114 * b);
+        temp.pb = (-0.168736 * r) - (0.331264 * g) + (0.5 * b);
+        temp.pr = (0.5 * r) - (0.418688 * g) - (0.081312 * b);
+        return temp;
+}
+
+/*                              index_of_dct
+ *
+ * Takes a float that represents the one of the discrete cosine coefficients. 
+ * Codes the floating point interval desired into a signed-integer set and 
+ * returns the integer value of the that set.
+ */
+int index_of_dct(float input)
+{       
+        if (input < -0.3) {
+                return -15;
+        }
+        if (input > 0.3) {
+                return 15;
+        }
+
+        return (int)(50 * input);
+}
+
+/*                           pack
+ *
+ * Takes four Ypp structs in order to use the Y, Pb, Pr of each struct in
+ * calculating the discrete cosine function coefficients (a,b,c,d,pb,pr).
+ * Returns a pixel_block struct which holds all of the calculated field values.
+ */
+pixel_block pack(Ypp one, Ypp two, Ypp three, Ypp four)
+{
+        float avg_pb, avg_pr, a, b, c, d;
+        int ind_a, ind_b, ind_c, ind_d, pb, pr;
+        pixel_block block;
+
+        avg_pb = (one.pb + two.pb + three.pb + four.pb) / 4;
+        avg_pr = (one.pr + two.pr + three.pr + four.pr) / 4;
+        
+        pb = Arith40_index_of_chroma(avg_pb);
+        pr = Arith40_index_of_chroma(avg_pr);
+
+        a = (one.y + two.y + three.y + four.y) / 4;
+        ind_a = a * 511;
+        b = (four.y + three.y - two.y - one.y) / 4;
+        ind_b = index_of_dct(b);
+        c = (four.y - three.y + two.y - one.y) / 4;
+        ind_c = index_of_dct(c);
+        d = (four.y - three.y - two.y + one.y) / 4;
+        ind_d = index_of_dct(d);
+
+        block.a = ind_a;
+        block.b = ind_b;
+        block.c = ind_c;
+        block.d = ind_d;
+        block.pb = pb;
+        block.pr = pr;
+        return block;
+}
+
+/*                          print_word
+ *
+ * Takes a pixel_block struct and adds each of the field values to a single word
+ * using the bitpack interface. Once all field values are in the word, the word
+ * is printed to stdout by characters.
+ */
+void print_word(pixel_block block)
+{
+
+        uint64_t word = 0;
+        word = Bitpack_newu(word, 4, PR_LSB, (uint64_t)block.pr);
+        word = Bitpack_newu(word, 4, PB_LSB, (uint64_t)block.pb);
+        word = Bitpack_news(word, 5, D_LSB, (int64_t)block.d);
+        word = Bitpack_news(word, 5, C_LSB, (int64_t)block.c);
+        word = Bitpack_news(word, 5, B_LSB, (int64_t)block.b);
+        word = Bitpack_newu(word, 9, A_LSB, (uint64_t)block.a);
+
+        putchar(Bitpack_getu(word, 8, 0));
+        putchar(Bitpack_getu(word, 8, 8));
+        putchar(Bitpack_getu(word, 8, 16));
+        putchar(Bitpack_getu(word, 8, 24));
+}
+
+/*                          map_decompress
+ *
+ * Apply function that loops through each element in the array and only performs
+ * the following when it's at a pixel in the bottom right corner of a 2x2 block.
+ * The closure is a FILE pointer. It accesses this pointer at each corner and 
+ * retrieves the word, along with the values it holds with a helper function.
+ * Then calculates and sets the four Ypp structs and uses another helper 
+ * function to convert Ypp to RGB. Those RGB pixels are then stored at the 
+ * final destination in the array (current 2x2 block.)
+ */
+void map_decompress(int i, int j, A2Methods_UArray2 arr, void *elem, void *cl)
+{
+        (void) elem;
+
+         if (i % 2 == 0 && j % 2 == 0) {
+                pixel_block block = unpack((FILE *) cl);
+                float a, b, c, d, pb, pr;
+                A2Methods_T methods = uarray2_methods_plain;
+                Ypp one, two, three, four;
+
+                a = (float) block.a / (float) 511;
+                b = dct_of_index(block.b);
+                c = dct_of_index(block.c);
+                d = dct_of_index(block.d);
+                
+                one.y = fmin(fmax(a - b - c + d, 0), 1);
+                two.y = fminf(fmax(a - b + c - d, 0), 1);
+                three.y = fmin(fmax(a + b - c - d, 0), 1);
+                four.y = fmin(fmax(a + b + c + d, 0), 1);
+
+                pb = Arith40_chroma_of_index(block.pb);
+                pr = Arith40_chroma_of_index(block.pr);
+                one.pb = pb;
+                one.pr = pr;
+                two.pb = pb;
+                two.pr = pr;
+                three.pb = pb;
+                three.pr = pr;
+                four.pb = pb;
+                four.pr = pr;
+
+                *((struct Pnm_rgb *) methods->at(arr,
+                                             i, j)) = YPP_to_RGB(one);
+                *((struct Pnm_rgb *) methods->at(arr,
+                                             i + 1, j)) = YPP_to_RGB(two);
+                *((struct Pnm_rgb *) methods->at(arr,
+                                             i, j + 1)) = YPP_to_RGB(three);
+                *((struct Pnm_rgb *) methods->at(arr,
+                                             i + 1, j + 1)) = YPP_to_RGB(four);
+        }
+
+}
+
+/*                                 unpack
+ *
+ * Takes a FILE pointer to retrieve the next character in the compressed image.
+ * Once the next 4 characters are retrieved, the word formed is used to retrieve
+ * the field values of the discrete cosine function (with the help of bitpack). 
+ * Those values are returned in a pixel_block struct.
+ */
+pixel_block unpack(FILE *fp)
+{
+    assert(fp != NULL);
+    pixel_block block;
+    uint64_t word = 0;
+    
+    unsigned char c = getc(fp);
+    word = Bitpack_newu(word, 8, 0, (uint64_t)c);
+    c = getc(fp);
+    word = Bitpack_newu(word, 8, 8, (uint64_t)c);
+    c = getc(fp);
+    word = Bitpack_newu(word, 8, 16, (uint64_t)c);
+    c = getc(fp);
+    word = Bitpack_newu(word, 8, 24, (uint64_t)c);
+    
+    block.pr = Bitpack_getu(word, 4, PR_LSB);
+    block.pb = Bitpack_getu(word, 4, PB_LSB);
+    block.d = Bitpack_gets(word, 5, D_LSB);
+    block.c = Bitpack_gets(word, 5, C_LSB);
+    block.b = Bitpack_gets(word, 5, B_LSB);
+    block.a = Bitpack_getu(word, 9, A_LSB);
+
+    return block;
+
+}
+
+/*                            dct_of_index
+ *
+ * Calculates the floating-point interval of the given index in the 
+ * signed-integer set and returns the floating-point value.
+ */
+float dct_of_index(int index)
+{
+        return (float)index / 50.0;
+}
+
+/*                              YPP_to_RGB
+ *
+ * Takes a Ypp struct that holds the Y, Pb and Pr component pixel values.
+ * Calculates the correlating RGB values and sets the those values in a Pnm_rgb
+ * struct which is returned.
+ */
+struct Pnm_rgb YPP_to_RGB(Ypp pixel) 
+{
+        struct Pnm_rgb temp;
+        int r, g, b;
+        float y = pixel.y;
+        float pb = pixel.pb;
+        float pr = pixel.pr;
+
+        r = DENOMINATOR * ((1.0 * y) + (0 * pb) + (1.402 * pr));
+        r = fmax(fmin(r, DENOMINATOR), 0);
+        g = DENOMINATOR * ((1.0 * y) - (0.344136 * pb) - (0.714136 * pr));
+        g = fmax(fmin(g, DENOMINATOR), 0);
+        b = DENOMINATOR * ((1.0 * y) + (1.772 * pb) + (0 * pr));
+        b =  fmax(fmin(b, DENOMINATOR), 0);
+
+        temp.red = r;
+        temp.green = g;
+        temp.blue = b;
+        return temp;
+}

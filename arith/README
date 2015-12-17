@@ -1,0 +1,88 @@
+
+                #################README##################
+                | Amoses Holton & Forrest Butler        |
+                | Assignment 4 Arith                    |
+                | 10/22/15                              |
+                #########################################
+
+We openly collaborated with multiple Comp40 TA's, and other students on this
+assignment, while still following the course guidelines. One important note
+is that while exploring the calendar, and looking to plan for future 
+instruction about the challenges, we opened the challenge at approximately
+11:30pm on 10/21/15, and immediately closed it upon realizing it's contents.
+Nothing was seen before closing the browser tab, and the visit happened on 
+Amoses' computer account (aholot01) from computer RM121-02.
+
+
+
+Correct Implementation:
+All features of the program have been implemented correctly to our knowledge.
+We have fully-functioning compress and decompress capabilities, and have
+extensively tested our bitpack and compress40 interfaces.
+
+
+                                Architecture  
+
+Our image40 is the most outward facing aspect of our program. Image40 calls
+upon our compress40 interface to compress or decompress a file or stdin, 
+depending on commandline arguments. compress40 uses a bitpack interface to
+store the representation of a compressed image in binary codewords when
+compressing. When decompressing, compress40 uses bitpack to convert the 
+codewords of a compressed image back into the representation of a
+non-compressed image.
+
+
+Hours spent analyzing problems posed in assignment: 10 Hours
+Hours spent solving the problems after analysis: 20 Hours
+
+
+                        Detailed Summary of Components
+
+40image
+This programs exists mainly as a wrapper for the user input. If not given 
+a -c (compress) or -d (decompress) modifier it defaults to compression.
+Additionally it will read from stdin if no input file is specified. SOme 
+example code would be as follows:
+        ./40image -c pup250.ppm
+        ./40image -d pup250decompressed.txt   
+
+Compress40
+This interface reads input from the FILE pointer provided by 40image. 
+Depending on the function that 40image calls, compress40 will either compress 
+or decompress the file. When compression is called, compress40 stores the image
+in a Pnm_ppm struct using the pnm interface. Compress40 then maps through the 
+pixel array to convert 4 pixels at a time from RGB to YPbPr format. Once the 
+four YPbPr pixels are created, compress40 performs a series of indexing and the
+discrete cosine functions to create a lossy 4-pixel block. This block is then
+packed using the bitpack interface into a 32-bit codeword and outputted to 
+stdout.
+When the function decompress40 is called by 40image, a Pnm_ppm struct is 
+initialized. Using an apply function with the input file pointer as the closure,
+decompress40 reads in a 32-bit codeword and unpacks it into the six field values
+representing a 2x2 block of YPbPr pixels, using the bitpack interface. Once the 
+YPbPr pixels are calculated using the inverse indexing and DCT functions, they 
+are converted to RGB format and placed in the array. Once done, the image is 
+printed to stdout using the pnm interface.
+
+Bitpack
+This interface is used to store bit-level codewords in signed and unsigned types
+in Big-Endian order. It can be used to check whether an unsigned or signed 
+integer fits within a given width, extract a field from a codeword, or to store
+a field in a codeword. It takes advantage of bit shifting, masking and 
+complements to effectively perform these functions. Some example code is 
+written below:
+
+Bitpack_fitsu(5, 3) // Returns true because an unsigned 3 bit integer can be 5
+Bitpack_fitss(5, 3) //Returns false because a signed 3 bit integer cannot be 5
+Bitpack_getu(0x3f4, 6, 2) //Returns 61
+Bitpack_gets(0x3f4, 6, 2) //Returns -3
+Bitpack_newu(0x3f4, 4, 4, a) //returns 0x3a4
+Bitpack_news(0x3f4,  5, 4, 0x1d) //returns 0x3b4
+
+
+ADVICE:
+For bitpack, the Bitpack_newu and Bitpack_news functions raise an exception
+when given values that do not fit in the given width. In addition, after
+multiple compressions and decompressions of the same image, an additional 1-2%
+loss will happen every cycle. The general loss for a photographic image is 
+below 3% while non-photographic images can have much higher losses.

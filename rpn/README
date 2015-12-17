@@ -1,0 +1,19 @@
+README for hw8
+
+Nick Carlino and Amoses Holton
+
+We received no outside assistance other than advice from TAs
+
+We believe that everything has been implemented correctly.
+
+There is no departure from the recommended calling convention
+
+For the print module, we decided to store each value into a separate data
+structure and print each value based on how many digits made it up: if it had
+multiple, print each digit separately. 
+
+We spent approximately 2 hours analyzing the problem.
+
+We spent approximately 4 hours implementing our solution.
+
+We spent approximately 7 hours debugging our implementation. 

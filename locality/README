@@ -1,0 +1,108 @@
+README
+Partner 1: Amoses Holton
+Login: aholto01
+
+Partner 2: Katherine Hoskins
+Login: khoski01
+
+Collaboration:
+        -comp40 TA's when debugging. 
+        -Noah for making our dog normal.
+
+Aspects that have been implemented correctly:
+        
+        uarray2b.c
+                -We have successfully created a 2-Dimensional unboxed 
+                 polymorphic array that stores its elements in block format. 
+                 Contains functions that a client can use to create, free, fill, 
+                 change and map a function over a 2D array.
+        a2plain.c
+                -Successfully implements a plain A2 Methods suite that uses a 
+                 UArray2 array and all of the functions that that interface 
+                 offers (with an addition of blocksize() but blocksize is
+                 returned as 1, since it's not blocked).
+        ppmtrans.c
+                -Successfully accepts an image in ppm format and arguments for 
+                 desired transformation and/or storage methods. Allows a user to 
+                 store the image in row, column or block major. Implemented 
+                 options for transformation are: rotate 0, rotate 90, 
+                 rotate 180 and rotate 270. Any other transformations mentioned
+                 in the specs aren't accepted and cause an exit(1), otherwise 
+                 the program performs an exit(0).
+                -Sucessfully performs desired transformotion (if available) on
+                 the ppm image and prints out the ppm image in binary format to
+                 stdout. 
+                -Lastly, a timing feature was also successfully implemented. 
+                 Records the time it takes to perform transformation on the
+                 image and writes that information to a file called 
+                 Timing_Info.txt.
+
+Architecture of our Solutions
+        uarray2b.c
+                We represented a 2-Dimensional, blocked array using a single 
+                UArray2 2D array, which is in turn represented with a single,
+                1 dimensional UArray. 
+        a2plain.c
+                We built the a2plain method suite with a struct of functions,
+                each with its own corresponding definition. Users have access
+                to a pointer to the struct and thus can access the functions 
+                via that pointer. This particular methods suite uses the UArray2
+                interface that we built for assignment 2. 
+        ppmtrans.c
+                The original image and transformed image are both stored in a 
+                Pnm_ppm object containing the array of pixels, a method pointer
+                and dimension information for the image being stored. After
+                reading in the image (using the Pnm_ppm interface) the proper
+                transformation is carried out with a mapping function over the
+                original image. With each iteration of the apply function, the
+                correct location for the current pixel in the rotated image is 
+                calculated and the pixel is copied to that location. We then
+                use the Pnm_ppm interface again to write the rotated image to 
+                stdout. Timing information is gathered using the CPU_Timing
+                interface. 
+
+Part E
+
+
+     Image Transformation Times(in ns, with an image of 49939200 pixels)
+--------------------------------------------------------------------------------
+|           | row-major          | column-major         | block-major
+--------------------------------------------------------------------------------
+|90-degree  |  1440527611 ns         1989829739 ns          4372419011 ns
+|           |  29 ns/pixel            40 ns/pixel             88 ns/pixel
+|           | 29 instr./pixel      40 instr./pixel          88 instr./pixel
+--------------------------------------------------------------------------------
+|180-degree |  1843802651 ns         248822668 ns           5378494106 ns
+|           |   37 ns/pixel           50 ns/pixel            108 ns/pixel
+|           |  37 instr./pixel       50 instr./pixel        108 instr./pixel
+--------------------------------------------------------------------------------
+|270-degree |  1619887855 ns         2153802194 ns          4619902776 ns
+|           |   32 ns/pixel           43 ns/pixel            93 ns/pixel
+|           |  32 instr./pixel      43 instr./pixel         93 instr./pixel
+--------------------------------------------------------------------------------
+
+According to the results above, the blocked array always yields a slower 
+transformation. We predicted that using the blocked array would yield a runtime
+somewhere between the runtime when using a row and column major image. One 
+explanation for the slowdown when using a blocked array could be that the 
+blocked implementation simply has more calculations to perform each time a new
+pixel is accessed. In our design document we estimated that using a blocked
+array required almost 6 times as many calculations, many of which were divisions
+and mods, which take much longer than other operations. Therefore, it would take
+more time to access all the pixels of a blocked array than a plain array. 
+
+The results above also show that an image-stored in row major consistently has
+the fastest transformation when compared to col-major and block-major. The 180 
+degree rotation is particularly well suited to row-major storage since rows
+are transformed into rows. Since in a row-major implemenation the elemnets of a 
+row are stored near eachother in memory, entire rows (or large portions of rows)
+can be cached, which leads to faster memory access and fewer slow loads from 
+main memory. Conversely, the column-major storage stores elements in a single 
+column near eachother in memory, meaning the cache lines hold entire columns
+(or parts of columns). This causes a slowdown when a program needs to access
+the elements in a row of the image, since elements from different rows belong 
+to different columsn and thus have poor locality. This means that the CPU must
+go back to main memory more frequently since cache hits are not as likely, thus
+creating a slowdown. 
+
+Time Spent on Assignment: 35 hours
